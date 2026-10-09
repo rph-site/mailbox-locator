@@ -7,8 +7,9 @@ const FIELDS = {
   mon:"fldkpBKeRJJ0Vf3qV",tue:"fldGiQ93uBaW29w6Y",wed:"fldwAkmDMcLDCYTyF",thu:"fldmKHi4k04qsCzjT",fri:"fldRWfbpRZGJCEkLU",sat:"fldxpVssS41uXdTe2",sun:"fldFSyUcFlsypzdmj"
 };
 const DAYS = ["mon","tue","wed","thu","fri","sat","sun"];
+export function unknownPickup(value){return typeof value==="string"&&/^(TBD|unknown|not confirmed)$/i.test(value.trim());}
 export function normalizePickup(value){
-  if(value===undefined||value===null||String(value).trim()==="")return null;
+  if(value===undefined||value===null||String(value).trim()===""||unknownPickup(value))return null;
   const text=String(value).trim();
   if(/^([01]\d|2[0-3]):[0-5]\d$/.test(text))return text;
   const match=text.match(/^(\d{1,2})(?::([0-5]\d))?\s*(AM|PM)$/i);
@@ -24,7 +25,8 @@ export function convertRecords(records){
       const latitude=f[FIELDS.latitude],longitude=f[FIELDS.longitude];
       if(typeof f[FIELDS.name]!=="string"||!f[FIELDS.name].trim()||typeof f[FIELDS.address]!=="string"||!f[FIELDS.address].trim()||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(longitude)||Math.abs(longitude)>180)throw new Error("Incomplete mailbox");
       const pickups=Object.fromEntries(DAYS.map(day=>[day,normalizePickup(f[FIELDS[day]])]));
-      mailboxes.push({id:record.id,name:f[FIELDS.name].trim(),address:f[FIELDS.address].trim(),latitude,longitude,pickups,notes:typeof f[FIELDS.notes]==="string"?f[FIELDS.notes]:""});
+      const unknownPickupDays=DAYS.filter(day=>unknownPickup(f[FIELDS[day]]));
+      mailboxes.push({id:record.id,name:f[FIELDS.name].trim(),address:f[FIELDS.address].trim(),latitude,longitude,pickups,unknownPickupDays,notes:typeof f[FIELDS.notes]==="string"?f[FIELDS.notes]:""});
     }catch{skipped++;}
   }
   mailboxes.sort((a,b)=>a.name.localeCompare(b.name));
@@ -43,7 +45,7 @@ export default {
     if(request.method==="OPTIONS")return cors(new Response(null,{status:204}),allowed);
     if(request.method!=="GET")return respond({error:"Only GET requests are supported."},405);
     if(!env.AIRTABLE_TOKEN)return respond({error:"Setup incomplete. Add AIRTABLE_TOKEN as a Cloudflare secret."},503);
-    const cacheKey=new Request(url.origin+"/mailboxes");
+    const cacheKey=new Request(url.origin+"/mailboxes?schema=2");
     let cache=null;try{cache=caches.default;const hit=await cache.match(cacheKey);if(hit)return cors(hit,allowed);}catch{}
     try{
       const records=[];let offset=null,pages=0;
