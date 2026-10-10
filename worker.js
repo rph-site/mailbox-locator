@@ -36,7 +36,7 @@ function json(data,status=200){return new Response(JSON.stringify(data),{status,
 function cors(response,origin){const headers=new Headers(response.headers);headers.set("Access-Control-Allow-Origin",origin);headers.set("Access-Control-Allow-Methods","GET, OPTIONS");headers.set("Access-Control-Allow-Headers","Content-Type");headers.set("Vary","Origin");headers.set("Cache-Control","no-store");return new Response(response.body,{status:response.status,headers});}
 export default {
   async fetch(request,env,ctx){
-    const url=new URL(request.url),allowed=String(env.ALLOWED_ORIGIN||"*").trim();
+    const url=new URL(request.url),allowed=String(env.ALLOWED_ORIGIN||"https://rph-site.github.io").trim();
     const origin=request.headers.get("Origin");
     /* These are public mailbox locations. CORS is a browser restriction, not authentication. */
     if(origin&&allowed!=="*"&&origin!==allowed)return json({error:"This website is not allowed. Check ALLOWED_ORIGIN in Cloudflare."},403);
@@ -46,7 +46,8 @@ export default {
     if(request.method!=="GET")return respond({error:"Only GET requests are supported."},405);
     if(!env.AIRTABLE_TOKEN)return respond({error:"Setup incomplete. Add AIRTABLE_TOKEN as a Cloudflare secret."},503);
     const cacheKey=new Request(url.origin+"/mailboxes?schema=2");
-    let cache=null;try{cache=caches.default;const hit=await cache.match(cacheKey);if(hit)return cors(hit,allowed);}catch{}
+    const forceRefresh=url.searchParams.get("refresh")==="1";
+    let cache=null;try{cache=caches.default;if(!forceRefresh){const hit=await cache.match(cacheKey);if(hit)return cors(hit,allowed);}}catch{}
     try{
       const records=[];let offset=null,pages=0;
       do{
@@ -63,7 +64,7 @@ export default {
         records.push(...body.records);offset=body.offset||null;if(++pages>=50&&offset)throw new Error("Too many records");
       }while(offset);
       const result=convertRecords(records);
-      const output={source:"Airtable",fetchedAt:new Date().toISOString(),cacheSeconds:CACHE_SECONDS,...result};
+      const output={source:"Airtable",fetchedAt:new Date().toISOString(),cacheSeconds:CACHE_SECONDS,fresh:forceRefresh,...result};
       const raw=json(output);const cacheable=raw.clone();cacheable.headers.set("Cache-Control",`public, max-age=${CACHE_SECONDS}`);
       if(cache){try{ctx.waitUntil(cache.put(cacheKey,cacheable).catch(()=>{}));}catch{}}
       return cors(raw,allowed);
