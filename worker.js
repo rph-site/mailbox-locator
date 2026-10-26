@@ -3,7 +3,7 @@ const BASE_ID = "appFUVid8cEGQvoaD";
 const TABLE_ID = "tbl0a1FHvC7meUYmG";
 const CACHE_SECONDS = 300;
 const FIELDS = {
-  name:"fldG9vpEPrfzZIgV5",address:"fldxUb1uXZ5jpoDVf",latitude:"fldAC6vo0FNZzN3YO",longitude:"fldgqc7Pc04JqpsmT",notes:"fldTD80RlK55xDCBu",active:"fldZM3Ht2zSBjjXdB",
+  name:"fldG9vpEPrfzZIgV5",address:"fldxUb1uXZ5jpoDVf",latitude:"fldAC6vo0FNZzN3YO",longitude:"fldgqc7Pc04JqpsmT",notes:"fldTD80RlK55xDCBu",active:"fldZM3Ht2zSBjjXdB",additional:"fldJF6CYSFvdcS8oy",
   mon:"fldkpBKeRJJ0Vf3qV",tue:"fldGiQ93uBaW29w6Y",wed:"fldwAkmDMcLDCYTyF",thu:"fldmKHi4k04qsCzjT",fri:"fldRWfbpRZGJCEkLU",sat:"fldxpVssS41uXdTe2",sun:"fldFSyUcFlsypzdmj"
 };
 const DAYS = ["mon","tue","wed","thu","fri","sat","sun"];
@@ -17,6 +17,20 @@ export function normalizePickup(value){
   const hour=Number(match[1])%12+(match[3].toUpperCase()==="PM"?12:0);
   return String(hour).padStart(2,"0")+":"+(match[2]||"00");
 }
+export function additionalPickups(value){
+  const result=Object.fromEntries(DAYS.map(day=>[day,[]]));
+  if(value===undefined||value===null||String(value).trim()==="")return result;
+  for(const line of String(value).split(/\r?\n/).filter(line=>line.trim())){
+    const match=line.trim().match(/^(mon|tue|wed|thu|fri|sat|sun):\s*(.+)$/i);
+    if(!match)throw new Error("Invalid additional pickup day");
+    const day=match[1].toLowerCase();
+    for(const part of match[2].split(",")){
+      const time=normalizePickup(part);if(time===null)throw new Error("Invalid additional pickup time");
+      result[day].push(time);
+    }
+  }
+  return result;
+}
 export function convertRecords(records){
   const mailboxes=[];let skipped=0;
   for(const record of records){
@@ -24,9 +38,16 @@ export function convertRecords(records){
     try{
       const latitude=f[FIELDS.latitude],longitude=f[FIELDS.longitude];
       if(typeof f[FIELDS.name]!=="string"||!f[FIELDS.name].trim()||typeof f[FIELDS.address]!=="string"||!f[FIELDS.address].trim()||!Number.isFinite(latitude)||Math.abs(latitude)>90||!Number.isFinite(longitude)||Math.abs(longitude)>180)throw new Error("Incomplete mailbox");
-      const pickups=Object.fromEntries(DAYS.map(day=>[day,normalizePickup(f[FIELDS[day]])]));
+      const extra=additionalPickups(f[FIELDS.additional]);
+      const pickupTimes=Object.fromEntries(DAYS.map(day=>{
+        const last=normalizePickup(f[FIELDS[day]]);
+        if(extra[day].length&&last===null)throw new Error("Additional pickups require a confirmed last pickup");
+        if(extra[day].some(time=>time>last))throw new Error("Additional pickup is later than last pickup");
+        return [day,[...new Set([...extra[day],...(last?[last]:[])])].sort()];
+      }));
+      const pickups=Object.fromEntries(DAYS.map(day=>[day,pickupTimes[day].at(-1)||null]));
       const unknownPickupDays=DAYS.filter(day=>unknownPickup(f[FIELDS[day]]));
-      mailboxes.push({id:record.id,name:f[FIELDS.name].trim(),address:f[FIELDS.address].trim(),latitude,longitude,pickups,unknownPickupDays,notes:typeof f[FIELDS.notes]==="string"?f[FIELDS.notes]:""});
+      mailboxes.push({id:record.id,name:f[FIELDS.name].trim(),address:f[FIELDS.address].trim(),latitude,longitude,pickups,pickupTimes,unknownPickupDays,notes:typeof f[FIELDS.notes]==="string"?f[FIELDS.notes]:""});
     }catch{skipped++;}
   }
   mailboxes.sort((a,b)=>a.name.localeCompare(b.name));
@@ -45,7 +66,7 @@ export default {
     if(request.method==="OPTIONS")return cors(new Response(null,{status:204}),allowed);
     if(request.method!=="GET")return respond({error:"Only GET requests are supported."},405);
     if(!env.AIRTABLE_TOKEN)return respond({error:"Setup incomplete. Add AIRTABLE_TOKEN as a Cloudflare secret."},503);
-    const cacheKey=new Request(url.origin+"/mailboxes?schema=2");
+    const cacheKey=new Request(url.origin+"/mailboxes?schema=3");
     const forceRefresh=url.searchParams.get("refresh")==="1";
     let cache=null;try{cache=caches.default;if(!forceRefresh){const hit=await cache.match(cacheKey);if(hit)return cors(hit,allowed);}}catch{}
     try{

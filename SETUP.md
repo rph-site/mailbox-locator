@@ -1,6 +1,6 @@
 # Blue Boxes setup
 
-Prepared October 9, 2026. App version: 2026-10-09.9.
+Updated October 26, 2026. App version: 2026-10-26.1.
 
 The Airtable workspace, base, table and nine owner supplied mailbox records are ready. The three demonstration records have been deleted.
 
@@ -9,6 +9,41 @@ Base: Blue Boxes | Mailbox Locator
 Table: Mailboxes
 
 Open the base: https://airtable.com/appFUVid8cEGQvoaD/tbl0a1FHvC7meUYmG
+
+## Update an existing installation
+
+This release adds multiple collections per day and shows the next pickup in the mailbox card. The pickup filter continues to use the last collection of the day.
+
+1. Extract the ZIP. In your existing mailbox-locator GitHub repository, replace index.html, worker.js and sw.js with the enclosed versions. Commit the upload. The other app files are included for completeness and do not need to be replaced.
+2. Wait for GitHub Pages and the connected Cloudflare Worker build to succeed. If the Worker does not deploy automatically, open your existing blue-boxes-data Worker and deploy the updated worker.js. Keep its existing AIRTABLE_TOKEN secret and ALLOWED_ORIGIN setting. Do not create another Worker or token.
+3. Close and reopen Blue Boxes. Confirm Version: 2026-10-26.1, then tap the top right refresh button.
+4. Open Maitland Concourse/OCS. Monday through Friday should show 9:00 AM and 5:00 PM. Saturday should show 3:00 PM. Sunday should show No pickup.
+
+Upload both the app and Worker updates for the expanded schedule to appear. Existing versions continue to show the last pickup while this update is pending.
+
+## Multiple pickups in Airtable
+
+Continue entering the last collection in each existing daily column. Enter optional earlier collections in the new Additional pickups field, one day per line. Example for an earlier weekday collection:
+
+```text
+mon: 09:00
+tue: 09:00
+wed: 09:00
+thu: 09:00
+fri: 09:00
+```
+
+For three collections on Monday, keep 17:00 in Monday and enter `mon: 09:00, 12:00` in Additional pickups. Both 24 hour times and AM/PM times are accepted. Extra times must not be later than the daily last pickup. Keep a daily field blank only for confirmed no collection and use TBD when unknown. Do not add extras to a blank or unknown day. Entries are sorted and duplicate times are removed.
+
+The Worker still supplies the old last pickup values, so older versions of the app continue working. It also supplies the full daily list to the updated app. Any malformed active record is skipped with a notice, as before.
+
+Maitland Concourse's 9:00 AM weekday collection is now saved in Additional pickups. Its existing 5:00 PM weekday, 3:00 PM Saturday and blank Sunday values are preserved. Other mailbox records were not changed.
+
+You can continue sending new times in this conversation. No further app upload is needed for additional collections.
+
+## Initial setup reference
+
+The following steps are for a new installation. An existing installation only needs the update steps above.
 
 ## 1. Create the Airtable token
 
@@ -28,7 +63,7 @@ The app can remain on GitHub Pages. The data service runs separately in Cloudfla
 4. Upload these three files directly into the root of the repository: `index.html`, `worker.js` and `wrangler.jsonc`. Upload the files themselves, not the enclosing folder and not the ZIP. The Worker code contains base and field IDs, but no token.
 5. Commit the files to main. If index.html already exists, replace it.
 6. If Pages is not enabled yet, open Settings, Pages. Choose Deploy from a branch, main, / (root), then Save.
-7. Wait for the Pages deployment in Actions to show a green check. Open the published HTTPS app URL and confirm version 2026-10-09.9.
+7. Wait for the Pages deployment in Actions to show a green check. Open the published HTTPS app URL and confirm version 2026-10-26.1.
 
 ## 3. Publish the connection service in Cloudflare
 
@@ -97,9 +132,9 @@ Opening a mailbox card keeps at least 42 percent of the map visible. The selecte
 
 Open a mailbox card and tap Get directions. Google Maps opens driving directions to the exact latitude and longitude. Google Maps chooses the starting location from your device when available. A searched place in the locator is not used as the route origin. No Google Maps API key is required.
 
-Maitland Concourse weekday pickups are 9:00 AM and 5:00 PM. Garbaldis/Crunch weekday pickups are assumed to be 11:00 AM and 5:00 PM. The daily schedule stores the last pickup. Earlier pickups are preserved in Notes. The 2964 St Rd 434 weekday 4:45 and Saturday 3:30 times are assumed to mean PM.
+Maitland Concourse weekday pickups are 9:00 AM and 5:00 PM. Garbaldis/Crunch weekday pickups are assumed to be 11:00 AM and 5:00 PM. The daily columns store the last pickup. Additional pickups stores earlier collections for the expanded schedule. Garbaldis/Crunch earlier collections remain in Notes until entered in Additional pickups. The 2964 St Rd 434 weekday 4:45 and Saturday 3:30 times are assumed to mean PM.
 
-All unspecified days, including Sundays, are TBD. Fern Park has no confirmed schedule. Postal street addresses were not provided for most locations, so Address contains the supplied location description. Directions use coordinates rather than these descriptions.
+Maitland Concourse has confirmed no Sunday collection. Other unspecified days, including other Sundays, remain TBD. Fern Park has no confirmed schedule. Postal street addresses were not provided for most locations, so Address contains the supplied location description. Directions use coordinates rather than these descriptions.
 
 For this refresh update, replace both index.html and worker.js in the GitHub repository. Confirm the Pages deployment and Cloudflare Worker deployment succeed. The updated Worker is needed to bypass the cache. Your existing token secret stays in Cloudflare.
 
@@ -111,7 +146,15 @@ On a connection failure, the app keeps its last saved mailbox copy and labels it
 
 MapTiler and data service settings are saved in the current browser. A different browser or phone needs its own setup. If browser storage is unavailable, settings work for that visit only.
 
-## What was tested
+## Checks for the October 26 update
+
+Passed script syntax checks, single and multiple collection schedules, sorting, duplicate removal, invalid schedule handling, old feed compatibility, next collection before and between pickups, all collections passed, Saturday, Sunday, last pickup filtering, radius, closest selection, and hide versus dim. Worker requests and cache behavior were checked with a simulated Airtable response.
+
+Chromium checks passed at 390 by 844, 320 by 568 and 844 by 390. Both collection times appear in today's summary and the weekly schedule. Pin taps, close button, outside dismissal, top refresh, selected pin position above the card and horizontal overflow were checked. No script errors were reported.
+
+The Airtable update succeeded. The updated Worker and app have not been deployed to your live site. Live phone behavior and the live expanded feed require checking after upload.
+
+## Verification from previous releases
 
 The HTML scripts and Worker pass syntax checks. Map logic was checked with fake coordinates and times, including all six radius choices, pickup boundaries, weekends, closest selection and combined filters.
 
@@ -137,9 +180,9 @@ Google Maps directions URLs: https://developers.google.com/maps/documentation/ur
 
 ## Install on Android
 
-Upload index.html, manifest.webmanifest, sw.js, icon-192.png, icon-512.png, and icon-maskable-512.png into the same GitHub repository folder. Upload the individual files, not the ZIP or enclosing folder. The Worker does not need to change for this update. If the previous refresh update is not deployed yet, also upload its worker.js.
+Upload index.html, manifest.webmanifest, sw.js, icon-192.png, icon-512.png, and icon-maskable-512.png into the same GitHub repository folder. Upload the individual files, not the ZIP or enclosing folder. The Worker must also be updated for multiple pickups. Upload the enclosed worker.js and wait for the connected Worker deployment to succeed.
 
-Wait for GitHub Pages to deploy successfully. On Android, open the published HTTPS app in Chrome and confirm Version: 2026-10-09.9. Open Filters and tap Install on Android. If no installation prompt appears, open Chrome's three dot menu and choose Add to home screen or Install app, then confirm.
+Wait for GitHub Pages to deploy successfully. On Android, open the published HTTPS app in Chrome and confirm Version: 2026-10-26.1. Open Filters and tap Install on Android. If no installation prompt appears, open Chrome's three dot menu and choose Add to home screen or Install app, then confirm.
 
 The home screen app is named Blue Boxes and uses the same blue collection mailbox as the map pins. A separate maskable icon keeps the mailbox visible with Android's different icon shapes. Installed launches open without the usual browser address bar. Android may ask for location permission again. Enter the MapTiler key and data service URL again only if the installed app asks for them.
 

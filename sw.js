@@ -1,5 +1,5 @@
 /* Cache app files only. Airtable and MapTiler requests always use the network. */
-const CACHE_NAME = "blue-boxes-shell-2026-10-09.8";
+const CACHE_NAME = "blue-boxes-shell-2026-10-26.1";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./icon-maskable-512.png"];
 const LEAFLET = ["https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css", "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"];
 const root = new URL(self.registration.scope);
@@ -30,7 +30,7 @@ self.addEventListener("fetch", event => {
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
     try {
-      const response = await fetch(request);
+      const response = await fetch(request, navigation ? {cache:"no-store"} : {});
       if(response.ok && response.type !== "opaque")await cache.put(navigation ? new URL("./index.html", root).href : request, response.clone());
       return response;
     } catch(error) {
